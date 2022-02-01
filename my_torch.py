@@ -195,7 +195,7 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_train, itr_test, **kwargs):
         bias = np.nan*np.zeros(ncol_x)
         
         for ccol_x, col_x in enumerate(cols_x):
-            xs_fit = cc(xs_train[:, [ccol_x]])[cc(mvalids_train), :]
+            xs_fit = cc(xs_train)[:, [ccol_x]][cc(mvalids_train), :]
             y_fit = cc(ys_train)[cc(mvalids_train)]
             
             rgr = linear_model.LinearRegression().fit(xs_fit, y_fit)
