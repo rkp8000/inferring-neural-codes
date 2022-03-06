@@ -182,7 +182,7 @@ def trj_2d(ax, t, x, y, b, c=None, s_max=500, v_max=10, gam=1.):
     for mode in np.sort(np.unique(b)).astype(int):
         bds = get_seg(b==mode, min_gap=1)[1]
         for istart, iend in bds:
-            ax.plot(x[istart:iend], y[istart:iend], lw=2, c=c[mode], zorder=0)
+            ax.plot(x[max(0, istart-1):iend], y[max(0, istart-1):iend], lw=2, c=c[mode], zorder=0)
     return ax
 
 
@@ -200,5 +200,5 @@ def trj_3d(ax, t, x, y, z, b, c=None, s_max=500, v_max=10, gam=1.):
     for mode in np.sort(np.unique(b)).astype(int):
         bds = get_seg(b==mode, min_gap=1)[1]
         for istart, iend in bds:
-            ax.plot(x[istart:iend], y[istart:iend], z[istart:iend], lw=2, c=c[mode], zorder=0)
+            ax.plot(x[max(0, istart-1):iend], y[max(0, istart-1):iend], z[max(0, istart-1):iend], lw=2, c=c[mode], zorder=0)
     return ax

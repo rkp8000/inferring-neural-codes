@@ -157,6 +157,7 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_train, itr_test, alpha=10, return_y=F
 def skl_fit_lin_single(pfxs, cols_x, targs, itr_train, itr_test, **kwargs):
     """Use scikit-learn to fit a linear model, but looping over single columns as predictors."""
     # load all data
+    print('Loading...')
     dfs_train_0 = [load_npy(f'{pfxs[0]}_tr_{itr}.npy')['df'] for itr in itr_train]
     dfs_test_0 = [load_npy(f'{pfxs[0]}_tr_{itr}.npy')['df'] for itr in itr_test]
     
@@ -173,10 +174,8 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_train, itr_test, **kwargs):
     
     rslt = Generic(r2_train={}, r2_test={}, w={}, bias={})
     
-    print('Fitting...')
     for targ in targs:
-        sys.stdout.write('.')
-        
+        print(f'Fitting {targ}')
         if targ in cols_0:
             ys_train = [np.array(df_train[targ]) for df_train in dfs_train_0]
             ys_test = [np.array(df_test[targ]) for df_test in dfs_test_0]
@@ -195,6 +194,7 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_train, itr_test, **kwargs):
         bias = np.nan*np.zeros(ncol_x)
         
         for ccol_x, col_x in enumerate(cols_x):
+            sys.stdout.write('.')
             xs_fit = cc(xs_train)[:, [ccol_x]][cc(mvalids_train), :]
             y_fit = cc(ys_train)[cc(mvalids_train)]
             
