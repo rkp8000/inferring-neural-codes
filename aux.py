@@ -69,6 +69,44 @@ def get_seg(x, min_gap):
     return seg, bds
 
 
+def get_sine_off_cur(i_s, i_p):
+    
+    bds_q = get_seg((i_s==0) & (i_p==0), min_gap=1)[1].astype(int)
+    bds_s = get_seg(i_s==1, min_gap=1)[1].astype(int)
+    bds_p = get_seg(i_p==1, min_gap=1)[1].astype(int)
+    
+    if bds_q.size == 0:
+        bds_q = bds_q.reshape((0, 2))
+    if bds_s.size == 0:
+        bds_s = bds_s.reshape((0, 2))
+    if bds_p.size == 0:
+        bds_p = bds_p.reshape((0, 2))
+    
+    bds = cc([bds_q, bds_s, bds_p])
+    modes = cc([np.repeat(0, len(bds_q)), np.repeat(1, len(bds_s)), np.repeat(2, len(bds_p))])
+    
+    idx_sorted = np.argsort(bds[:, 0])
+    bds = bds[idx_sorted, :]
+    modes = modes[idx_sorted]
+    
+    prev_modes = -1*np.ones(len(modes), dtype=int)
+    prev_modes[1:] = modes[:-1]
+    
+    modes[(prev_modes == 1) & (modes == 0)] = 4  # quiet post-sine
+    modes[(prev_modes == 1) & (modes == 2)] = 5  # pulse post-sine
+    
+    i_qs = np.zeros(len(i_s))
+    i_ps = np.zeros(len(i_p))
+    
+    for mode, (lb, ub) in zip(modes, bds):
+        if mode == 4:  # quiet post-sine
+            i_qs[lb:ub] = 1
+        elif mode == 5:  # pulse post-sine
+            i_ps[lb:ub] = 1
+            
+    return i_s, i_p, i_qs, i_ps, modes
+
+
 def mv_avg(t, x, wdw):
     # return symmetric moving average of x with wdw s
     x_avg = np.nan * np.zeros(x.shape)
