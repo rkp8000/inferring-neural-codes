@@ -14,6 +14,169 @@ from disp import set_plot
 cc = np.concatenate
 
 
+def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, alpha=10, verbose=True, **kwargs):
+    """
+    Use scikit-learn to fit a linear model using ridge regression.
+    :param pfxs: data file prefixes (original neural/behav file & extended behavior file)
+    :param cols_x: which columns to use to fit
+    :param targs: which targets to fit
+    :param itr_all: idxs of all trials to sample training/test data from
+    :param ntrain: number of training trials
+    :param nsplit: number of training/test splits
+    """
+    if return_y is None:
+        return_y = []
+        
+    # load all data
+    print('Loading...')
+    dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
+    dfs_1 = {itr: pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_all}
+    
+    # loop over splits
+    rslts = []
+    for csplit in range(nsplit):
+        sys.stdout.write(f'\nSplit {csplit}')
+        irnd = np.random.permutation(len(itr_all))
+        itr_train = itr_all[irnd[:ntrain]]
+        itr_test = itr_all[irnd[ntrain:]]
+        dfs_train_0 = [dfs_0[itr] for itr in itr_train]
+        dfs_test_0 = [dfs_0[itr] for itr in itr_test]
+        
+        dfs_train_1 = [dfs_1[itr] for itr in itr_train]
+        dfs_test_1 = [dfs_1[itr] for itr in itr_test]
+    
+        cols_0 = dfs_train_0[0].columns
+        cols_1 = dfs_train_1[0].columns
+
+        xs_train = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
+        xs_test = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
+        
+        rslt = Generic(
+            alpha=alpha,
+            r2_train={}, r2_test={}, w={}, bias={}, rms_err_train={}, rms_err_test={},
+            ys_train={}, ys_test={}, y_hats_train={}, y_hats_test={}, mvalids_train={}, mvalids_test={})
+
+        for targ in targs:
+            if verbose:  sys.stdout.write('>')
+
+            if targ in cols_0:
+                ys_train = [np.array(df_train[targ]) for df_train in dfs_train_0]
+                ys_test = [np.array(df_test[targ]) for df_test in dfs_test_0]
+            elif targ in cols_1:
+                ys_train = [np.array(df_train[targ]) for df_train in dfs_train_1]
+                ys_test = [np.array(df_test[targ]) for df_test in dfs_test_1]
+            else:
+                raise KeyError(f'Column with label "{targ}" not found.')
+
+            mvalids_train = [~np.isnan(y_train) for y_train in ys_train]
+            mvalids_test = [~np.isnan(y_test) for y_test in ys_test]
+
+            xs_fit = cc(xs_train)[cc(mvalids_train), :]
+            y_fit = cc(ys_train)[cc(mvalids_train)]
+
+            # regress
+            rgr = linear_model.Ridge(alpha=alpha).fit(xs_fit, y_fit)
+
+            # store basic vars
+            rslt.w[targ] = rgr.coef_
+            rslt.bias[targ] = rgr.intercept_
+
+            rslt.r2_train[targ] = rgr.score(cc(xs_train)[cc(mvalids_train), :], cc(ys_train)[cc(mvalids_train)])
+            rslt.r2_test[targ] = rgr.score(cc(xs_test)[cc(mvalids_test), :], cc(ys_test)[cc(mvalids_test)])
+
+            # store extra vars (if specified)
+            if csplit in return_y:
+                rslt.ys_train[targ] = ys_train
+                rslt.ys_test[targ] = ys_test
+
+                rslt.mvalids_train[targ] = mvalids_train
+                rslt.mvalids_test[targ] = mvalids_test
+
+                y_hats_train = [rgr.predict(x_train[mvalid_train, :]) for x_train, mvalid_train in zip(xs_train, mvalids_train)]
+                y_hats_test = [rgr.predict(x_test[mvalid_test, :]) for x_test, mvalid_test in zip(xs_test, mvalids_test)]
+
+                rslt.y_hats_train[targ] = y_hats_train
+                rslt.y_hats_test[targ] = y_hats_test
+
+                rslt.rms_err_train[targ] = np.mean((cc(ys_train)[cc(mvalids_train)] - cc(y_hats_train))**2)
+                rslt.rms_err_test[targ] = np.mean((cc(ys_test)[cc(mvalids_test)] - cc(y_hats_test))**2)
+
+        rslts.append(rslt)
+        
+    return rslts
+
+
+# OLD VERSION
+def skl_fit_ridge_(pfxs, cols_x, targs, itr_train, itr_test, alpha=10, return_y=False, verbose=True, **kwargs):
+    """Use scikit-learn to fit a linear model using ridge regression."""
+    # load all data
+    print('Loading...')
+    dfs_train_0 = [np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_train]
+    dfs_test_0 = [np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_test]
+    
+    dfs_train_1 = [pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_train]
+    dfs_test_1 = [pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_test]
+    
+    cols_0 = dfs_train_0[0].columns
+    cols_1 = dfs_train_1[0].columns
+    
+    xs_train = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
+    xs_test = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
+    
+    rslt = Generic(
+        alpha=alpha,
+        r2_train={}, r2_test={}, w={}, bias={}, rms_err_train={}, rms_err_test={},
+        ys_train={}, ys_test={}, y_hats_train={}, y_hats_test={}, mvalids_train={}, mvalids_test={})
+    
+    print('Fitting...') 
+    for targ in targs:
+        if verbose:  sys.stdout.write('>')
+        
+        if targ in cols_0:
+            ys_train = [np.array(df_train[targ]) for df_train in dfs_train_0]
+            ys_test = [np.array(df_test[targ]) for df_test in dfs_test_0]
+        elif targ in cols_1:
+            ys_train = [np.array(df_train[targ]) for df_train in dfs_train_1]
+            ys_test = [np.array(df_test[targ]) for df_test in dfs_test_1]
+        else:
+            raise KeyError(f'Column with label "{targ}" not found.')
+
+        mvalids_train = [~np.isnan(y_train) for y_train in ys_train]
+        mvalids_test = [~np.isnan(y_test) for y_test in ys_test]
+    
+        xs_fit = cc(xs_train)[cc(mvalids_train), :]
+        y_fit = cc(ys_train)[cc(mvalids_train)]
+        
+        # regress
+        rgr = linear_model.Ridge(alpha=alpha).fit(xs_fit, y_fit)
+        
+        # store basic vars
+        rslt.w[targ] = rgr.coef_
+        rslt.bias[targ] = rgr.intercept_
+        
+        rslt.r2_train[targ] = rgr.score(cc(xs_train)[cc(mvalids_train), :], cc(ys_train)[cc(mvalids_train)])
+        rslt.r2_test[targ] = rgr.score(cc(xs_test)[cc(mvalids_test), :], cc(ys_test)[cc(mvalids_test)])
+        
+        # store extra vars (if specified)
+        if return_y:
+            rslt.ys_train[targ] = ys_train
+            rslt.ys_test[targ] = ys_test
+
+            rslt.mvalids_train[targ] = mvalids_train
+            rslt.mvalids_test[targ] = mvalids_test
+
+            y_hats_train = [rgr.predict(x_train[mvalid_train, :]) for x_train, mvalid_train in zip(xs_train, mvalids_train)]
+            y_hats_test = [rgr.predict(x_test[mvalid_test, :]) for x_test, mvalid_test in zip(xs_test, mvalids_test)]
+            
+            rslt.y_hats_train[targ] = y_hats_train
+            rslt.y_hats_test[targ] = y_hats_test
+
+            rslt.rms_err_train[targ] = np.mean((cc(ys_train)[cc(mvalids_train)] - cc(y_hats_train))**2)
+            rslt.rms_err_test[targ] = np.mean((cc(ys_test)[cc(mvalids_test)] - cc(y_hats_test))**2)
+       
+    return rslt
+
+
 def skl_fit_lin(pfxs, cols_x, targs, itr_train, itr_test, return_y=False, verbose=True, **kwargs):
     """Use scikit-learn to fit a linear model."""
         
@@ -84,74 +247,6 @@ def skl_fit_lin(pfxs, cols_x, targs, itr_train, itr_test, return_y=False, verbos
     return rslt
 
 
-def skl_fit_ridge(pfxs, cols_x, targs, itr_train, itr_test, alpha=10, return_y=False, verbose=True, **kwargs):
-    """Use scikit-learn to fit a linear model using ridge regression."""
-    # load all data
-    print('Loading...')
-    dfs_train_0 = [np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_train]
-    dfs_test_0 = [np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_test]
-    
-    dfs_train_1 = [pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_train]
-    dfs_test_1 = [pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_test]
-    
-    cols_0 = dfs_train_0[0].columns
-    cols_1 = dfs_train_1[0].columns
-    
-    xs_train = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
-    xs_test = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
-    
-    rslt = Generic(
-        alpha=alpha,
-        r2_train={}, r2_test={}, w={}, bias={}, rms_err_train={}, rms_err_test={},
-        ys_train={}, ys_test={}, y_hats_train={}, y_hats_test={}, mvalids_train={}, mvalids_test={})
-    
-    print('Fitting...') 
-    for targ in targs:
-        if verbose:  sys.stdout.write('>')
-        
-        if targ in cols_0:
-            ys_train = [np.array(df_train[targ]) for df_train in dfs_train_0]
-            ys_test = [np.array(df_test[targ]) for df_test in dfs_test_0]
-        elif targ in cols_1:
-            ys_train = [np.array(df_train[targ]) for df_train in dfs_train_1]
-            ys_test = [np.array(df_test[targ]) for df_test in dfs_test_1]
-        else:
-            raise KeyError(f'Column with label "{targ}" not found.')
-
-        mvalids_train = [~np.isnan(y_train) for y_train in ys_train]
-        mvalids_test = [~np.isnan(y_test) for y_test in ys_test]
-    
-        xs_fit = cc(xs_train)[cc(mvalids_train), :]
-        y_fit = cc(ys_train)[cc(mvalids_train)]
-        
-        # regress
-        rgr = linear_model.Ridge(alpha=alpha).fit(xs_fit, y_fit)
-        
-        # store basic vars
-        rslt.w[targ] = rgr.coef_
-        rslt.bias[targ] = rgr.intercept_
-        
-        rslt.r2_train[targ] = rgr.score(cc(xs_train)[cc(mvalids_train), :], cc(ys_train)[cc(mvalids_train)])
-        rslt.r2_test[targ] = rgr.score(cc(xs_test)[cc(mvalids_test), :], cc(ys_test)[cc(mvalids_test)])
-        
-        # store extra vars (if specified)
-        if return_y:
-            rslt.ys_train[targ] = ys_train
-            rslt.ys_test[targ] = ys_test
-
-            rslt.mvalids_train[targ] = mvalids_train
-            rslt.mvalids_test[targ] = mvalids_test
-
-            y_hats_train = [rgr.predict(x_train[mvalid_train, :]) for x_train, mvalid_train in zip(xs_train, mvalids_train)]
-            y_hats_test = [rgr.predict(x_test[mvalid_test, :]) for x_test, mvalid_test in zip(xs_test, mvalids_test)]
-            
-            rslt.y_hats_train[targ] = y_hats_train
-            rslt.y_hats_test[targ] = y_hats_test
-
-            rslt.rms_err_train[targ] = np.mean((cc(ys_train)[cc(mvalids_train)] - cc(y_hats_train))**2)
-            rslt.rms_err_test[targ] = np.mean((cc(ys_test)[cc(mvalids_test)] - cc(y_hats_test))**2)
-       
-    return rslt
 
 
 def skl_fit_lin_single(pfxs, cols_x, targs, itr_train, itr_test, **kwargs):
