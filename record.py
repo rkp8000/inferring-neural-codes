@@ -6,88 +6,112 @@ from aux import get_sine_off_cur
 
 
 # MA: multiplicative adaptation neuron
-def smlt_ma(i_s, i_p, tau_r, tau_a, x_s, x_p, dt):
-    """Simulate response to song inputs."""
-    t = np.arange(len(i_s))*dt
-    r = np.nan*np.zeros(len(t))
+def smlt_ppln_ma(i_s, i_p, tau_rs, tau_as, x_ss, x_ps, dt):
+    n = len(tau_rs)
     
-    r[0] = 0
-    a_s, a_p = 0, 0
+    t = np.arange(len(i_s))*dt
+    rs = np.nan*np.zeros((len(t), n))
+    
+    rs[0, :] = 0
+    a_s = np.zeros(n)
+    a_p = np.zeros(n)
     
     for ct, t_ in enumerate(t[1:], 1):
-        a_s += ((dt/tau_a) * (-a_s + x_s*i_s[ct]))
-        a_p += ((dt/tau_a) * (-a_p + x_p*i_p[ct]))
-        r[ct] = r[ct-1] + (dt/tau_r) * (-r[ct-1] + (x_s - a_s)*i_s[ct] + (x_p - a_p)*i_p[ct])
+        a_s += ((dt/tau_as) * (-a_s + i_s[ct]))
+        a_p += ((dt/tau_as) * (-a_p + i_p[ct]))
+        rs[ct, :] = rs[ct-1, :] + (dt/tau_rs) * (-rs[ct-1, :] + (1 - a_s)*x_ss*i_s[ct] + (1 - a_p)*x_ps*i_p[ct])
     
-    return r
-
+    return rs
 
 # LIN: linear filter neurons
-def smlt_lin(i_s, i_p, h_s, h_p, dt):
-    r = dt*(signal.fftconvolve(i_s, h_s, mode='full')[:len(i_s)] \
-    + signal.fftconvolve(i_p, h_p, mode='full')[:len(i_p)])
+def smlt_ppln_lin(i_s, i_p, h_ss, h_ps, dt):
+    """Each column of h_ss or h_ps is one neuron's filter"""
+    rs = dt*(signal.fftconvolve(i_s[:, None], h_ss, mode='full', axes=0)[:len(i_s), :] \
+        + signal.fftconvolve(i_p[:, None], h_ps, mode='full', axes=0)[:len(i_p), :])
     
-    return r
+    return rs
 
 
-# LIN2E: linear filter neurons where each filter is sum of two exponentials
-def smlt_lin2e(i_s, i_p, t_h, x_s_0, tau_s_0, x_s_1, tau_s_1, x_p_0, tau_p_0, x_p_1, tau_p_1, dt):
-    h_s = x_s_0*np.exp(-t_h/tau_s_0) + x_s_1*np.exp(-t_h/tau_s_1)
-    h_p = x_p_0*np.exp(-t_h/tau_p_0) + x_p_1*np.exp(-t_h/tau_p_1)
+# LIN2e: linear filter neurons where each filter is sum of two exponentials
+def smlt_ppln_lin2e(i_s, i_p, t_h, x_s_0s, tau_s_0s, x_s_1s, tau_s_1s, x_p_0s, tau_p_0s, x_p_1s, tau_p_1s, dt):
+    h_ss = np.array([
+        x_s_0*np.exp(-t_h/tau_s_0) + x_s_1*np.exp(-t_h/tau_s_1) 
+        for x_s_0, tau_s_0, x_s_1, tau_s_1 in zip(x_s_0s, tau_s_0s, x_s_1s, tau_s_1s)
+    ]).T
     
-    return smlt_lin(i_s, i_p, h_s, h_p, dt)
+    h_ps = np.array([
+        x_p_0*np.exp(-t_h/tau_p_0) + x_p_1*np.exp(-t_h/tau_p_1)
+        for x_p_0, tau_p_0, x_p_1, tau_p_1 in zip(x_p_0s, tau_p_0s, x_p_1s, tau_p_1s)
+    ]).T
+    
+    return smlt_ppln_lin(i_s, i_p, h_ss, h_ps, dt)
 
 
 # LN: linear-nonlinear neurons
-def smlt_ln(i_s, i_p, h_s, h_p, r_min, r_max, z_0, beta, dt):
-    z = dt*(signal.fftconvolve(i_s, h_s, mode='full')[:len(i_s)] + signal.fftconvolve(i_p, h_p, mode='full')[:len(i_p)])
+def smlt_ppln_ln(i_s, i_p, h_ss, h_ps, r_mins, r_maxs, z_0s, betas, dt):
+    """Each column of h_ss or h_ps is one neuron's filter"""
+    zs = dt*(signal.fftconvolve(i_s[:, None], h_ss, mode='full', axes=0)[:len(i_s), :] \
+        + signal.fftconvolve(i_p[:, None], h_ps, mode='full', axes=0)[:len(i_p), :])
     
-    return r_min + (r_max-r_min)*(np.tanh(beta*(z-z_0)) + 1)/2
+    return r_mins + (r_maxs-r_mins)*(np.tanh(betas*(zs-z_0s)) + 1)/2
 
 
-# LN2E: linear-nonlinear neurons where each filter is sum of two exponentials
-def smlt_ln2e(i_s, i_p, t_h, x_s_0, tau_s_0, x_s_1, tau_s_1, x_p_0, tau_p_0, x_p_1, tau_p_1, r_min, r_max, z_0, beta, dt):
-    h_s = x_s_0*np.exp(-t_h/tau_s_0) + x_s_1*np.exp(-t_h/tau_s_1)
-    h_p = x_p_0*np.exp(-t_h/tau_p_0) + x_p_1*np.exp(-t_h/tau_p_1)
+# LN: linear-nonlinear neurons where each filter is sum of two exponentials
+def smlt_ppln_ln2e(i_s, i_p, t_h, x_s_0s, tau_s_0s, x_s_1s, tau_s_1s, x_p_0s, tau_p_0s, x_p_1s, tau_p_1s, r_mins, r_maxs, z_0s, betas, dt):
+    h_ss = np.array([
+        x_s_0*np.exp(-t_h/tau_s_0) + x_s_1*np.exp(-t_h/tau_s_1) 
+        for x_s_0, tau_s_0, x_s_1, tau_s_1 in zip(x_s_0s, tau_s_0s, x_s_1s, tau_s_1s)
+    ]).T
     
-    return smlt_ln(i_s, i_p, h_s, h_p, r_min, r_max, z_0, beta, dt)
+    h_ps = np.array([
+        x_p_0*np.exp(-t_h/tau_p_0) + x_p_1*np.exp(-t_h/tau_p_1)
+        for x_p_0, tau_p_0, x_p_1, tau_p_1 in zip(x_p_0s, tau_p_0s, x_p_1s, tau_p_1s)
+    ]).T
+    
+    return smlt_ppln_ln(i_s, i_p, h_ss, h_ps, r_mins, r_maxs, z_0s, betas, dt)
 
 
-# MA-S-OFF: multiplicative adaptation neuron with sine-offset responses
-def smlt_masoff(i_s, i_p, tau_r, tau_a, x_s, x_p, x_qs, x_ps, dt):
+# MA-S-OFF: multiplicative adaptation neurons with sine-offset responses
+def smlt_ppln_masoff(i_s, i_p, tau_rs, tau_as, x_s_all, x_p_all, x_qs_all, x_ps_all, dt):
+    n = len(tau_rs)
     
     i_s, i_p, i_qs, i_ps = get_sine_off_cur(i_s, i_p)[:4]
-    
     t = np.arange(len(i_s))*dt
-    r = np.nan*np.zeros(len(t))
+    rs = np.nan*np.zeros((len(t), n))
     
-    r[0] = 0
-    a_s, a_p, a_qs, a_ps = 0, 0, 0, 0
+    rs[0, :] = 0
+    a_s = np.zeros(n)
+    a_p = np.zeros(n)
+    a_qs = np.zeros(n)
+    a_ps = np.zeros(n)
     
     for ct, t_ in enumerate(t[1:], 1):
-        a_s += ((dt/tau_a) * (-a_s + i_s[ct]))
-        a_p += ((dt/tau_a) * (-a_p + i_p[ct]))
-        a_qs += ((dt/tau_a) * (-a_qs + i_qs[ct]))
-        a_ps += ((dt/tau_a) * (-a_ps + i_ps[ct]))
-        r[ct] = r[ct-1] + (dt/tau_r) * (-r[ct-1] + (1 - a_s)*x_s*i_s[ct] + (1 - a_p)*x_p*i_p[ct] + (1 - a_qs)*x_qs*i_qs[ct] + (1 - a_ps)*x_ps*i_ps[ct])
+        a_s += ((dt/tau_as) * (-a_s + i_s[ct]))
+        a_p += ((dt/tau_as) * (-a_p + i_p[ct]))
+        a_qs += ((dt/tau_as) * (-a_qs + i_qs[ct]))
+        a_ps += ((dt/tau_as) * (-a_ps + i_ps[ct]))
+        
+        rs[ct, :] = rs[ct-1, :] + (dt/tau_rs) * (-rs[ct-1, :] + (1-a_s)*x_s_all*i_s[ct] + (1-a_p)*x_p_all*i_p[ct] + (1-a_qs)*x_qs_all*i_qs[ct] + (1-a_ps)*x_ps_all*i_ps[ct])
+        
+    return rs
     
-    return r
-
-
+    
 # MA-S-RB: multiplicative adaptation with "sine-rebound" responses
-def smlt_masrb(i_s, i_p, tau_r, tau_a, x_s, x_p, x_qs, x_ps, dt):
+def smlt_ppln_masrb(i_s, i_p, tau_rs, tau_as, x_s_all, x_p_all, x_qs_all, x_ps_all, dt):
+    n = len(tau_rs)
     
     i_s, i_p, i_qs, i_ps = get_sine_off_cur(i_s, i_p)[:4]
-    
     t = np.arange(len(i_s))*dt
-    r = np.nan*np.zeros(len(t))
+    rs = np.nan*np.zeros((len(t), n))
     
-    r[0] = 0
-    a_s, a_p = 0, 0
+    rs[0, :] = 0
+    a_s = np.zeros(n)
+    a_p = np.zeros(n)
     
     for ct, t_ in enumerate(t[1:], 1):
-        a_s += ((dt/tau_a) * (-a_s + i_s[ct]))
-        a_p += ((dt/tau_a) * (-a_p + i_p[ct]))
-        r[ct] = r[ct-1] + (dt/tau_r) * (-r[ct-1] + (1 - a_s)*x_s*i_s[ct] + (1 - a_p)*x_p*i_p[ct] + a_s*x_qs*i_qs[ct] + a_s*x_ps*i_ps[ct])
+        a_s += ((dt/tau_as) * (-a_s + i_s[ct]))
+        a_p += ((dt/tau_as) * (-a_p + i_p[ct]))
+        rs[ct, :] = rs[ct-1, :] + (dt/tau_rs) * (-rs[ct-1, :] + (1 - a_s)*x_s_all*i_s[ct] + (1 - a_p)*x_p_all*i_p[ct] + a_s*x_qs_all*i_qs[ct] + a_s*x_ps_all*i_ps[ct])
+        
+    return rs
     
-    return r
