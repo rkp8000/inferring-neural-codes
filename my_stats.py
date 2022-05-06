@@ -9,6 +9,10 @@ def nanpearsonr(x, y):
     return stats.pearsonr(x[valid], y[valid])
 
 
+def get_r2(y, y_hat):
+    return 1 - np.nanmean((y_hat - y)**2)/np.nanvar(y, ddof=0)
+
+
 def pearsonr_with_confidence(x, y, confidence=0.95):
     """
     Calculate the pearson correlation coefficient, its p-value, and upper and
