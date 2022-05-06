@@ -8,13 +8,14 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-from aux import Generic, load_npy
+from aux import Generic, load_npy, split
 from disp import set_plot
+from my_stats import get_r2
 
 cc = np.concatenate
 
 
-def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, alpha=10, verbose=True, **kwargs):
+def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, alpha=10, verbose=True, seed=0, **kwargs):
     """
     Use scikit-learn to fit a linear model using ridge regression.
     :param pfxs: data file prefixes (original neural/behav file & extended behavior file)
@@ -29,78 +30,104 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
         
     # load all data
     print('Loading...')
+    
+    # main data frames with surrogate neural recordings and basic behavioral quantities
     dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
+    # corresponding data frames with extended behavioral quantities
     dfs_1 = {itr: pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_all}
     
     # loop over splits
+    np.random.seed(seed)
+    
     rslts = []
     for csplit in range(nsplit):
         sys.stdout.write(f'\nSplit {csplit}')
-        irnd = np.random.permutation(len(itr_all))
-        itr_train = itr_all[irnd[:ntrain]]
-        itr_test = itr_all[irnd[ntrain:]]
-        dfs_train_0 = [dfs_0[itr] for itr in itr_train]
-        dfs_test_0 = [dfs_0[itr] for itr in itr_test]
         
+        irnd = np.random.permutation(len(itr_all))
+        
+        # training trials
+        itr_train = itr_all[irnd[:ntrain]]
+        
+        dfs_train_0 = [dfs_0[itr] for itr in itr_train]
         dfs_train_1 = [dfs_1[itr] for itr in itr_train]
+        
+        nts_train = [len(df_train) for df_train in dfs_train_0]  # length (num timesteps) of training trials
+        its_start_train = cc([[0], np.cumsum(nts_train)[:-1]])  # training trial start time indexes
+        its_end_train = np.cumsum(nts_train)  # training trial end time indexes
+        
+        # test trials
+        itr_test = itr_all[irnd[ntrain:]]
+        
+        dfs_test_0 = [dfs_0[itr] for itr in itr_test]
         dfs_test_1 = [dfs_1[itr] for itr in itr_test]
+        
+        nts_test = [len(df_test) for df_test in dfs_test_0]
+        its_start_test = cc([[0], np.cumsum(nts_test)[:-1]])
+        its_end_test = np.cumsum(nts_test)
     
         cols_0 = dfs_train_0[0].columns
         cols_1 = dfs_train_1[0].columns
 
-        xs_train = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
-        xs_test = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
+        xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
+        xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
         
         rslt = Generic(
-            alpha=alpha,
-            r2_train={}, r2_test={}, w={}, bias={}, rms_err_train={}, rms_err_test={},
-            ys_train={}, ys_test={}, y_hats_train={}, y_hats_test={}, mvalids_train={}, mvalids_test={})
+            alpha=alpha, targs=targs,
+            w={}, bias={},
+            ys_train={}, y_hats_train={}, rms_err_train={}, r2_train={}, 
+            ys_test={}, y_hats_test={}, rms_err_test={}, r2_test={})
 
+        ys_train = []
+        ys_test = []
+        
         for targ in targs:
-            if verbose:  sys.stdout.write('>')
-
+            
             if targ in cols_0:
-                ys_train = [np.array(df_train[targ]) for df_train in dfs_train_0]
-                ys_test = [np.array(df_test[targ]) for df_test in dfs_test_0]
+                ys_train.append(cc([np.array(df_train[targ]) for df_train in dfs_train_0]))
+                ys_test.append(cc([np.array(df_test[targ]) for df_test in dfs_test_0]))
+                
             elif targ in cols_1:
-                ys_train = [np.array(df_train[targ]) for df_train in dfs_train_1]
-                ys_test = [np.array(df_test[targ]) for df_test in dfs_test_1]
+                ys_train.append(cc([np.array(df_train[targ]) for df_train in dfs_train_1]))
+                ys_test.append(cc([np.array(df_test[targ]) for df_test in dfs_test_1]))
+                
             else:
                 raise KeyError(f'Column with label "{targ}" not found.')
-
-            mvalids_train = [~np.isnan(y_train) for y_train in ys_train]
-            mvalids_test = [~np.isnan(y_test) for y_test in ys_test]
-
-            xs_fit = cc(xs_train)[cc(mvalids_train), :]
-            y_fit = cc(ys_train)[cc(mvalids_train)]
-
-            # regress
-            rgr = linear_model.Ridge(alpha=alpha).fit(xs_fit, y_fit)
+                
+        # create array of targs
+        ys_train = np.transpose(ys_train)
+        ys_test = np.transpose(ys_test)
+        
+        mvalid_train = ~np.any(np.isnan(ys_train), axis=1)
+        mvalid_test = ~np.any(np.isnan(ys_test), axis=1)
+        
+        rgr = linear_model.Ridge(alpha=alpha).fit(xs_train[mvalid_train, :], ys_train[mvalid_train, :])
+        
+        y_hats_train = np.nan*np.zeros(ys_train.shape)
+        y_hats_test = np.nan*np.zeros(ys_test.shape)
+        
+        y_hats_train[mvalid_train, :] = rgr.predict(xs_train[mvalid_train, :])
+        y_hats_test[mvalid_test, :] = rgr.predict(xs_test[mvalid_test, :])
+        
+        for ctarg, targ in enumerate(targs):
 
             # store basic vars
-            rslt.w[targ] = rgr.coef_
-            rslt.bias[targ] = rgr.intercept_
+            rslt.w[targ] = rgr.coef_[ctarg, :]
+            rslt.bias[targ] = rgr.intercept_[ctarg]
 
-            rslt.r2_train[targ] = rgr.score(cc(xs_train)[cc(mvalids_train), :], cc(ys_train)[cc(mvalids_train)])
-            rslt.r2_test[targ] = rgr.score(cc(xs_test)[cc(mvalids_test), :], cc(ys_test)[cc(mvalids_test)])
+            rslt.r2_train[targ] = get_r2(ys_train[:, ctarg], y_hats_train[:, ctarg])
+            rslt.r2_test[targ] = get_r2(ys_test[:, ctarg], y_hats_test[:, ctarg])
+            
+            rslt.rms_err_train[targ] = np.sqrt(np.mean((ys_train[:, ctarg] - y_hats_train[:, ctarg])**2))
+            rslt.rms_err_test[targ] = np.sqrt(np.mean((ys_test[:, ctarg] - y_hats_test[:, ctarg])**2))
 
             # store extra vars (if specified)
             if csplit in return_y:
-                rslt.ys_train[targ] = ys_train
-                rslt.ys_test[targ] = ys_test
+                rslt.ys_train[targ] = split(ys_train[:, ctarg], its_start_train, its_end_train)
+                rslt.ys_test[targ] = split(ys_test[:, ctarg], its_start_test, its_end_test)
 
-                rslt.mvalids_train[targ] = mvalids_train
-                rslt.mvalids_test[targ] = mvalids_test
-
-                y_hats_train = [rgr.predict(x_train[mvalid_train, :]) for x_train, mvalid_train in zip(xs_train, mvalids_train)]
-                y_hats_test = [rgr.predict(x_test[mvalid_test, :]) for x_test, mvalid_test in zip(xs_test, mvalids_test)]
-
-                rslt.y_hats_train[targ] = y_hats_train
-                rslt.y_hats_test[targ] = y_hats_test
-
-                rslt.rms_err_train[targ] = np.mean((cc(ys_train)[cc(mvalids_train)] - cc(y_hats_train))**2)
-                rslt.rms_err_test[targ] = np.mean((cc(ys_test)[cc(mvalids_test)] - cc(y_hats_test))**2)
-
+                rslt.y_hats_train[targ] = split(y_hats_train[:, ctarg], its_start_train, its_end_train)
+                rslt.y_hats_test[targ] = split(y_hats_test[:, ctarg], its_start_test, its_end_test)
+                
         rslts.append(rslt)
         
     return rslts
