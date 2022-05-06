@@ -69,6 +69,10 @@ def get_seg(x, min_gap):
     return seg, bds
 
 
+def split(x, istarts, iends):
+    return [x[istart:iend] for istart, iend in zip(istarts, iends)]
+
+
 def get_sine_off_cur(i_s, i_p):
     
     bds_q = get_seg((i_s==0) & (i_p==0), min_gap=1)[1].astype(int)
