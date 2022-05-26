@@ -29,7 +29,7 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
         return_y = []
         
     # load all data
-    print('Loading...')
+    if verbose:  print('Loading...')
     
     # main data frames with surrogate neural recordings and basic behav quantities
     dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
@@ -41,7 +41,7 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
     
     rslts = []
     for csplit in range(nsplit):
-        sys.stdout.write(f'\nSplit {csplit}')
+        if verbose:  sys.stdout.write(f'\nSplit {csplit}')
         
         irnd = np.random.permutation(len(itr_all))
         
@@ -138,7 +138,7 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
     ncol_x = len(cols_x)
     
     # load all data
-    print('Loading...')
+    print('\nLoading...')
     
     # main data frames with surrogate neural recordings and basic behav quantities
     dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
@@ -154,8 +154,9 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         w={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs},
         bias={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs})
     
+    sys.stdout.write('Splits:')
     for csplit in range(nsplit):
-        sys.stdout.write(f'\nSplit {csplit}')
+        sys.stdout.write('X')
         
         irnd = np.random.permutation(len(itr_all))
         
@@ -218,6 +219,92 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
 
                 rslt.w[targ][csplit, ccol_x] = rgr.coef_[ctarg, 0]
                 rslt.bias[targ][csplit, ccol_x] = rgr.intercept_[ctarg]
+                
+    return rslt
+
+
+def skl_fit_ridge_add_col(pfxs, cols_x, cols_x_fixed, targs, itr_all, ntrain, nsplit, alpha=10, seed=0, verbose=False, **kwargs):
+    """Use scikit-learn to fit a linear model, but looping over new single columns as predictors given a fixed set of columns as pre-existing predictors."""
+    ncol_x = len(cols_x)
+    
+    # load all data
+    print('\nLoading...')
+    
+    # main data frames with surrogate neural recordings and basic behav quantities
+    dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
+    # corresponding data frames with extended behavioral quantities
+    dfs_1 = {itr: pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_all}
+    
+    # loop over splits
+    np.random.seed(seed)
+    
+    rslt = Generic(
+        cols_x_fixed=cols_x_fixed,
+        r2_train={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs},
+        r2_test={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs},
+        w={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs},
+        bias={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs})
+    
+    sys.stdout.write('Splits:')
+    for csplit in range(nsplit):
+        sys.stdout.write('X')
+        
+        irnd = np.random.permutation(len(itr_all))
+        
+        # training trials
+        itr_train = itr_all[irnd[:ntrain]]
+        
+        dfs_train_0 = [dfs_0[itr] for itr in itr_train]
+        dfs_train_1 = [dfs_1[itr] for itr in itr_train]
+    
+        # test trials
+        itr_test = itr_all[irnd[ntrain:]]
+        
+        dfs_test_0 = [dfs_0[itr] for itr in itr_test]
+        dfs_test_1 = [dfs_1[itr] for itr in itr_test]
+        
+        cols_0 = dfs_train_0[0].columns
+        cols_1 = dfs_train_1[0].columns
+    
+        xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
+        xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
+        
+        for targ in targs:
+            
+            if targ in cols_0:
+                ys_train = cc([np.array(df_train[targ]) for df_train in dfs_train_0])
+                ys_test = cc([np.array(df_test[targ]) for df_test in dfs_test_0])
+                
+            elif targ in cols_1:
+                ys_train = cc([np.array(df_train[targ]) for df_train in dfs_train_1])
+                ys_test = cc([np.array(df_test[targ]) for df_test in dfs_test_1])
+                
+            else:
+                raise KeyError(f'Column with label "{targ}" not found.')
+        
+            mvalid_train = ~np.isnan(ys_train)
+            mvalid_test = ~np.isnan(ys_test)
+            
+            cols_x_fixed_int = [int(col_x[2:]) for col_x in cols_x_fixed[targ]]  # since originally written e.g. 'R_23'
+        
+            # loop over neurons
+            for ccol_x, col_x in enumerate(cols_x):
+                if verbose and ((ccol_x % 15) == 0):  sys.stdout.write('.')
+
+                fit_cols_x = cols_x_fixed_int + [ccol_x]
+                rgr = linear_model.Ridge(alpha=alpha).fit(xs_train[:, fit_cols_x][mvalid_train, :], ys_train[mvalid_train])
+
+                y_hats_train = np.nan*np.zeros(len(ys_train))
+                y_hats_test = np.nan*np.zeros(len(ys_test))
+
+                y_hats_train[mvalid_train] = rgr.predict(xs_train[:, fit_cols_x][mvalid_train, :])
+                y_hats_test[mvalid_test] = rgr.predict(xs_test[:, fit_cols_x][mvalid_test, :])
+
+                rslt.r2_train[targ][csplit, ccol_x] = get_r2(ys_train, y_hats_train)
+                rslt.r2_test[targ][csplit, ccol_x] = get_r2(ys_test, y_hats_test)
+
+                rslt.w[targ][csplit, ccol_x] = rgr.coef_[-1]
+                rslt.bias[targ][csplit, ccol_x] = rgr.intercept_
                 
     return rslt
 
