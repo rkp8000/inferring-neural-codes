@@ -184,9 +184,6 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
         xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
         
-        mvalid_train_x = ~np.any(np.isnan(xs_train), axis=1)
-        mvalid_test_x = ~np.any(np.isnan(xs_test), axis=1)
-        
         ys_train = []
         ys_test = []
     
@@ -210,13 +207,16 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         mvalid_train_y = ~np.any(np.isnan(ys_train), axis=1)
         mvalid_test_y = ~np.any(np.isnan(ys_test), axis=1)
         
-        mvalid_train = (mvalid_train_x & mvalid_train_y)
-        mvalid_test = (mvalid_test_x & mvalid_test_y)
-        
         # loop over neurons
         for ccol_x, col_x in enumerate(cols_x):
             if verbose and ((ccol_x % 15) == 0):  sys.stdout.write('.')
                 
+            mvalid_train_x = ~np.isnan(xs_train[:, ccol_x])
+            mvalid_test_x = ~np.isnan(xs_test[:, ccol_x])
+            
+            mvalid_train = (mvalid_train_x & mvalid_train_y)
+            mvalid_test = (mvalid_test_x & mvalid_test_y)
+            
             rgr = linear_model.LinearRegression().fit(xs_train[:, [ccol_x]][mvalid_train, :], ys_train[mvalid_train, :])
 
             y_hats_train = np.nan*np.zeros(ys_train.shape)
