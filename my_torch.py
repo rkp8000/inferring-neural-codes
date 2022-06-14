@@ -71,6 +71,9 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
         xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
         xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
         
+        mvalid_train_x = ~np.any(np.isnan(xs_train), axis=1)
+        mvalid_test_x = ~np.any(np.isnan(xs_test), axis=1)
+        
         rslt = Generic(
             alpha=alpha, targs=targs,
             w={}, bias={},
@@ -97,8 +100,11 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
         ys_train = np.transpose(ys_train)
         ys_test = np.transpose(ys_test)
         
-        mvalid_train = ~np.any(np.isnan(ys_train), axis=1)
-        mvalid_test = ~np.any(np.isnan(ys_test), axis=1)
+        mvalid_train_y = ~np.any(np.isnan(ys_train), axis=1)
+        mvalid_test_y = ~np.any(np.isnan(ys_test), axis=1)
+        
+        mvalid_train = (mvalid_train_x & mvalid_train_y)
+        mvalid_test = (mvalid_test_x & mvalid_test_y)
         
         rgr = linear_model.Ridge(alpha=alpha).fit(xs_train[mvalid_train, :], ys_train[mvalid_train, :])
         
@@ -178,6 +184,9 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
         xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
         
+        mvalid_train_x = ~np.any(np.isnan(xs_train), axis=1)
+        mvalid_test_x = ~np.any(np.isnan(xs_test), axis=1)
+        
         ys_train = []
         ys_test = []
     
@@ -198,8 +207,11 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         ys_train = np.transpose(ys_train)
         ys_test = np.transpose(ys_test)
         
-        mvalid_train = ~np.any(np.isnan(ys_train), axis=1)
-        mvalid_test = ~np.any(np.isnan(ys_test), axis=1)
+        mvalid_train_y = ~np.any(np.isnan(ys_train), axis=1)
+        mvalid_test_y = ~np.any(np.isnan(ys_test), axis=1)
+        
+        mvalid_train = (mvalid_train_x & mvalid_train_y)
+        mvalid_test = (mvalid_test_x & mvalid_test_y)
         
         # loop over neurons
         for ccol_x, col_x in enumerate(cols_x):
