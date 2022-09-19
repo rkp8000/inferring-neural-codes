@@ -73,6 +73,13 @@ def split(x, istarts, iends):
     return [x[istart:iend] for istart, iend in zip(istarts, iends)]
 
 
+def get_outliers(x, ndev=3):
+    med = np.median(x)
+    med_abs_dev = np.median(np.abs(x - med))
+    
+    return np.abs(x - med) > (ndev*med_abs_dev)
+
+
 def get_sine_off_cur(i_s, i_p):
     
     bds_q = get_seg((i_s==0) & (i_p==0), min_gap=1)[1].astype(int)
@@ -121,11 +128,43 @@ def mv_avg(t, x, wdw):
 
 
 def zscore(x):
-    return (x - x.mean(axis=0)) / x.std(axis=0)
+    return (x - np.nanmean(x, axis=0)) / np.nanstd(x, axis=0)
 
 
 def load_npy(file_name):
     return np.load(file_name, allow_pickle=True)[0]
+
+
+def align_t(ts, xs, dt, t_min=None, t_max=None, tbase=None):
+    """
+    Align variable length/frame-rate timestamps and corresponding signal to common base time vector.
+    (Slow implementation but works.)
+    """
+    
+    if t_min is None:
+        t_min = np.min(cc(ts))
+    
+    if t_max is None:
+        t_max = np.max(cc(ts))
+    
+    # create base time vector
+    if tbase is None:
+        tbase = np.arange(t_min, t_max+dt, dt)
+    
+    # resample xs to align with base time vector
+    xs_aligned = []
+    
+    for t, x in zip(ts, xs):
+        
+        x_aligned = np.nan * tbase
+        for ct, t_0 in enumerate(tbase):
+            t_1 = t_0 + dt
+            if t_0 < t[-1]:
+                x_aligned[ct] = np.nanmean(x[(t_0 <= t) & (t < t_1)])
+        
+        xs_aligned.append(x_aligned)
+    
+    return tbase, xs_aligned
 
 
 def loadmat_h5(file_name):
