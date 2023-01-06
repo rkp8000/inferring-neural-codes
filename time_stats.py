@@ -67,7 +67,7 @@ def cov_with_confidence(x, y, confidence=0.95):
     y_no_nans = y[~nan_mask]
 
     cov = np.cov(x_no_nans, y_no_nans)[0, 1]
-    corr, pv, lb, ub = pearsonr_with_confidence(x, y, confidence)
+    corr, pv, lb, ub = pearsonr_with_confidence(x_no_nans, y_no_nans, confidence)
 
     scale_factor = cov / corr
 
@@ -195,3 +195,17 @@ def partial_corr(x, y, controls):
         residuals.append(v - lrg.predict(control_array))
 
     return stats.pearsonr(residuals[0], residuals[1])
+
+
+def nan_detrend(x):
+    t = np.arange(len(x))
+    mvalid = ~np.isnan(x)
+    slp, icpt, r, pv, stderr = stats.linregress(t[mvalid], x[mvalid])
+    return x - (slp*t + icpt)
+
+
+def nan_cov(x, y):
+    """Compute covariance of two vectors ignoring nans."""
+    mvalid = (~np.isnan(x)) & (~np.isnan(y))
+    
+    return np.cov(np.array([x[mvalid], y[mvalid]]))[0, 1]

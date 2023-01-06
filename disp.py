@@ -202,3 +202,46 @@ def trj_3d(ax, t, x, y, z, b, c=None, s_max=500, v_max=10, gam=1.):
         for istart, iend in bds:
             ax.plot(x[max(0, istart-1):iend], y[max(0, istart-1):iend], z[max(0, istart-1):iend], lw=2, c=c[mode], zorder=0)
     return ax
+
+
+def plot_xpl_ma_rslt(rslts, isplit, itr_test, targ, tau_rs, tau_as, x_ss, x_ps):
+    
+    rslt = rslts[isplit]
+    t = rslt.ts_test[itr_test]
+    song = rslt.songs_test[itr_test]
+    rs = rslt.xs_test[itr_test]
+
+    y = rslt.ys_test[targ][itr_test]
+    y_hat = rslt.y_hats_test[targ][itr_test]
+
+    fig, axs = plt.subplots(2, 1, figsize=(15, 5), tight_layout=True)
+
+    axs[0].plot(t, rs)
+    axs[0].set_ylabel('Activity level')
+    axs[0].set_title(f'Neural responses (trial {rslt.itr_test[itr_test]})')
+
+    axs[1].plot(t, y, c='orange')
+    axs[1].plot(t, y_hat, c='k')
+    axs[1].legend(['True', 'Predicted'], ncol=2)
+    axs[1].set_xlabel('Time (s)')
+    axs[1].set_ylabel(targ)
+    axs[1].set_title(f'True vs predicted target (trial {rslt.itr_test[itr_test]})')
+
+    # song bounding boxes
+    song_bds_0 = [0, t.max() + np.mean(np.diff(t)), np.nanmax(rs) + .2*(np.nanmax(rs) - np.nanmin(rs)), np.nanmax(rs) + .4*(np.nanmax(rs) - np.nanmin(rs))]
+    song_bds_1 = [0, t.max() + np.mean(np.diff(t)), np.nanmax(y) + .2*(np.nanmax(y) - np.nanmin(y)), np.nanmax(y) + .4*(np.nanmax(y) - np.nanmin(y))]
+
+    for ax, song_bds in zip(axs, [song_bds_0, song_bds_1]):
+        plot_b(ax, t, song, extent=song_bds, c=[(.9, .9, .9), 'b', 'r', 'r'])
+        set_plot(ax, font_size=16)
+
+    # neuron parameters vs targ prediction weights
+    ws = []
+    for cr, (tau_r, tau_a, x_s, x_p) in enumerate(zip(tau_rs, tau_as, x_ss, x_ps)):
+        w = np.mean([rslt.w[targ][cr] for rslt in rslts])
+        print(f'Neuron {cr+1}: TAU_R={tau_r:.2f}, TAU_A={tau_a:.3f}, X_S={x_s:.2f}, X_P={x_p:.2f} (W = {w:.2f}) ')
+        ws.append(w)
+        
+    axs[0].legend([f'w = {w:.2f}' for w in ws], loc='lower right', ncol=min(3, len(ws)), fontsize=12)
+    
+    return axs

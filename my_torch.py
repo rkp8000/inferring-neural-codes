@@ -1,12 +1,10 @@
+from copy import deepcopy as copy
 import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter1d as smooth
 from scipy import stats
 from sklearn import linear_model
 import sys
-import torch
-from torch import nn
-from torch.utils.data import DataLoader, Dataset
 
 from aux import Generic, load_npy, split
 from disp import set_plot
@@ -15,7 +13,9 @@ from my_stats import get_r2
 cc = np.concatenate
 
 
-def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, alpha=10, verbose=True, seed=0, **kwargs):
+def skl_fit_ridge(
+        pfxs, cols_x, targs, itr_all, ntrain, nsplit, mask_pfx=None,
+        return_y=None, return_nrl=None, alpha=10, verbose=True, seed=0, **kwargs):
     """
     Use scikit-learn to fit a linear model using ridge regression.
     :param pfxs: data file prefixes (original neural/behav file & extended behavior file)
@@ -27,21 +27,29 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
     """
     if return_y is None:
         return_y = []
+    if return_nrl is None:
+        return_nrl = []
         
     # load all data
-    if verbose:  print('Loading...')
+    if verbose is True:  print('Loading...')
     
     # main data frames with surrogate neural recordings and basic behav quantities
     dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
     # corresponding data frames with extended behavioral quantities
     dfs_1 = {itr: pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_all}
     
+    if mask_pfx is not None:
+        masks = {itr: np.load(f'{mask_pfx}_tr_{itr}.npy', allow_pickle=True)[0]['mask'] for itr in itr_all}
+    
     # loop over splits
     np.random.seed(seed)
     
     rslts = []
     for csplit in range(nsplit):
-        if verbose:  sys.stdout.write(f'\nSplit {csplit}')
+        if verbose is True:
+            sys.stdout.write(f'\nSplit {csplit}')
+        elif verbose == 'dots':
+            sys.stdout.write('.')
         
         irnd = np.random.permutation(len(itr_all))
         
@@ -67,9 +75,23 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
     
         cols_0 = dfs_train_0[0].columns
         cols_1 = dfs_train_1[0].columns
-
-        xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
-        xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
+        
+        xs_train_ = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
+        xs_test_ = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
+        
+        if mask_pfx is not None:
+            
+            masks_train = [masks[itr] for itr in itr_train]
+            masks_test = [masks[itr] for itr in itr_test]
+            
+            for ctr_train, mask_train in enumerate(masks_train):
+                xs_train_[ctr_train][~mask_train, :] = np.nan
+                
+            for ctr_test, mask_test in enumerate(masks_test):
+                xs_test_[ctr_test][~mask_test, :] = np.nan
+                
+        xs_train = cc(xs_train_)
+        xs_test = cc(xs_test_)
         
         mvalid_train_x = ~np.any(np.isnan(xs_train), axis=1)
         mvalid_test_x = ~np.any(np.isnan(xs_test), axis=1)
@@ -78,7 +100,8 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
             alpha=alpha, targs=targs,
             w={}, bias={},
             ys_train={}, y_hats_train={}, rms_err_train={}, r2_train={}, 
-            ys_test={}, y_hats_test={}, rms_err_test={}, r2_test={})
+            ys_test={}, y_hats_test={}, rms_err_test={}, r2_test={},
+            songs_train=[], songs_test=[], nrl_train=[], nrl_test=[])
 
         ys_train = []
         ys_test = []
@@ -126,31 +149,70 @@ def skl_fit_ridge(pfxs, cols_x, targs, itr_all, ntrain, nsplit, return_y=None, a
             rslt.rms_err_train[targ] = np.sqrt(np.mean((ys_train[:, ctarg] - y_hats_train[:, ctarg])**2))
             rslt.rms_err_test[targ] = np.sqrt(np.mean((ys_test[:, ctarg] - y_hats_test[:, ctarg])**2))
 
-            # store extra vars (if specified)
+            # store targs and predictions
             if csplit in return_y:
                 rslt.ys_train[targ] = split(ys_train[:, ctarg], its_start_train, its_end_train)
                 rslt.ys_test[targ] = split(ys_test[:, ctarg], its_start_test, its_end_test)
 
                 rslt.y_hats_train[targ] = split(y_hats_train[:, ctarg], its_start_train, its_end_train)
                 rslt.y_hats_test[targ] = split(y_hats_test[:, ctarg], its_start_test, its_end_test)
+            
+        # store songs (making for easy plotting directly from rslt object)
+        if csplit in return_y:
+            
+            # train
+            rslt.itr_train = copy(itr_train)
+            
+            rslt.songs_train = []
+            rslt.ts_train = []
+            for df_train_0 in dfs_train_0:
+                song = np.zeros(len(df_train_0), dtype=int)
+                song[np.array(df_train_0['S']) == 1] = 1
+                song[np.array(df_train_0['P']) == 1] = 2
+                song[np.array(df_train_0['F']) == 1] = 3
+                
+                rslt.songs_train.append(song.copy())
+                rslt.ts_train.append(np.array(df_train_0['T']))
+            
+            # test
+            rslt.itr_test = copy(itr_test)
+            
+            rslt.songs_test = []
+            rslt.ts_test = []
+            for df_test_0 in dfs_test_0:
+                song = np.zeros(len(df_test_0), dtype=int)
+                song[np.array(df_test_0['S']) == 1] = 1
+                song[np.array(df_test_0['P']) == 1] = 2
+                song[np.array(df_test_0['F']) == 1] = 3
+                
+                rslt.songs_test.append(song.copy())
+                rslt.ts_test.append(np.array(df_test_0['T']))
+                
+        # store neural predictors
+        if csplit in return_nrl:
+            rslt.xs_train = copy(xs_train_)
+            rslt.xs_test = copy(xs_test_)
                 
         rslts.append(rslt)
         
     return rslts
 
 
-def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, verbose=False, **kwargs):
+def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, mask_pfx=None, seed=0, verbose=False, **kwargs):
     """Use scikit-learn to fit a linear model, but looping over single columns as predictors."""
     ncol_x = len(cols_x)
     
     # load all data
-    print('\nLoading...')
+    if verbose is True:  print('\nLoading...')
     
     # main data frames with surrogate neural recordings and basic behav quantities
     dfs_0 = {itr: np.load(f'{pfxs[0]}_tr_{itr}.npy', allow_pickle=True)[0]['df'] for itr in itr_all}
     # corresponding data frames with extended behavioral quantities
     dfs_1 = {itr: pd.read_csv(f'{pfxs[1]}_tr_{itr}.csv') for itr in itr_all}
     
+    if mask_pfx is not None:
+        masks = {itr: np.load(f'{mask_pfx}_tr_{itr}.npy', allow_pickle=True)[0]['mask'] for itr in itr_all}
+        
     # loop over splits
     np.random.seed(seed)
     
@@ -160,9 +222,10 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         w={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs},
         bias={targ: np.nan*np.zeros((nsplit, ncol_x)) for targ in targs})
     
-    sys.stdout.write('Splits:')
+    sys.stdout.write('Splits:\n')
     for csplit in range(nsplit):
-        sys.stdout.write('X')
+        if verbose:
+            sys.stdout.write('>')
         
         irnd = np.random.permutation(len(itr_all))
         
@@ -181,8 +244,34 @@ def skl_fit_lin_single(pfxs, cols_x, targs, itr_all, ntrain, nsplit, seed=0, ver
         cols_0 = dfs_train_0[0].columns
         cols_1 = dfs_train_1[0].columns
     
-        xs_train = cc([np.array(df_train[cols_x]) for df_train in dfs_train_0])
-        xs_test = cc([np.array(df_test[cols_x]) for df_test in dfs_test_0])
+        xs_train_ = [np.array(df_train[cols_x]) for df_train in dfs_train_0]
+        xs_test_ = [np.array(df_test[cols_x]) for df_test in dfs_test_0]
+        
+#         if ignore_pre_song:
+#             # set to nan all times before song starts, which is same as time before neural activity starts
+#             for ctr_train, x_train_ in enumerate(xs_train_):
+#                 quiet = np.all(x_train_ == 0, axis=1)
+#                 t_first_song = np.nonzero(~quiet)[0][0]
+#                 xs_train_[ctr_train][:t_first_song, :] = np.nan
+                
+#             for ctr_test, x_test_ in enumerate(xs_test_):
+#                 quiet = np.all(x_test_ == 0, axis=1)
+#                 t_first_song = np.nonzero(~quiet)[0][0]
+#                 xs_test_[ctr_test][:t_first_song, :] = np.nan
+
+        if mask_pfx is not None:
+            
+            masks_train = [masks[itr] for itr in itr_train]
+            masks_test = [masks[itr] for itr in itr_test]
+            
+            for ctr_train, mask_train in enumerate(masks_train):
+                xs_train_[ctr_train][~mask_train, :] = np.nan
+                
+            for ctr_test, mask_test in enumerate(masks_test):
+                xs_test_[ctr_test][~mask_test, :] = np.nan
+                
+        xs_train = cc(xs_train_)
+        xs_test = cc(xs_test_)
         
         ys_train = []
         ys_test = []
@@ -522,130 +611,130 @@ def skl_fit_ridge_add_col(pfxs, cols_x, cols_x_fixed, targs, itr_all, ntrain, ns
 #     return rslt
 
 
-class NeuralBehavDataset(Dataset):
+# class NeuralBehavDataset(Dataset):
         
-    def __init__(self, pfx, itrs, cols_x, col_y):
-        self.pfx = pfx
-        self.itrs = itrs
-        self.cols_x = cols_x
-        self.col_y = col_y
+#     def __init__(self, pfx, itrs, cols_x, col_y):
+#         self.pfx = pfx
+#         self.itrs = itrs
+#         self.cols_x = cols_x
+#         self.col_y = col_y
 
-    def __len__(self):
-        return len(self.itrs)
+#     def __len__(self):
+#         return len(self.itrs)
 
-    def __getitem__(self, idx):
-        # return all data from one trial
-        df = np.load(f'{self.pfx}_tr_{self.itrs[idx]}.npy', allow_pickle=True)[0]['df']
-        return np.array(df[self.cols_x]), np.array(df[self.col_y])
+#     def __getitem__(self, idx):
+#         # return all data from one trial
+#         df = np.load(f'{self.pfx}_tr_{self.itrs[idx]}.npy', allow_pickle=True)[0]['df']
+#         return np.array(df[self.cols_x]), np.array(df[self.col_y])
 
 
-class NeuralNetwork(nn.Module):
+# class NeuralNetwork(nn.Module):
     
-    def __init__(self, cols_x):
-        super(NeuralNetwork, self).__init__()
-        self.stack = nn.Sequential(
-            nn.Linear(len(cols_x), 1),
-        )
+#     def __init__(self, cols_x):
+#         super(NeuralNetwork, self).__init__()
+#         self.stack = nn.Sequential(
+#             nn.Linear(len(cols_x), 1),
+#         )
         
-    def forward(self, x):
-        return self.stack(x)
+#     def forward(self, x):
+#         return self.stack(x)
 
     
-def torch_fit_lin(pfx, cols_x, col_y, itrs_train, itrs_test, **kwargs):
-    lr = kwargs.get('lr', 1e-5)
-    nepoch = kwargs.get('nepoch', 1500)
-    print_every = kwargs.get('print_every', 50)
+# def torch_fit_lin(pfx, cols_x, col_y, itrs_train, itrs_test, **kwargs):
+#     lr = kwargs.get('lr', 1e-5)
+#     nepoch = kwargs.get('nepoch', 1500)
+#     print_every = kwargs.get('print_every', 50)
     
-    dataset_train = NeuralBehavDataset(pfx, itrs_train, cols_x, col_y)
-    dataloader_train = DataLoader(dataset_train, batch_size=1, shuffle=False)
+#     dataset_train = NeuralBehavDataset(pfx, itrs_train, cols_x, col_y)
+#     dataloader_train = DataLoader(dataset_train, batch_size=1, shuffle=False)
 
-    dataset_test = NeuralBehavDataset(pfx, itrs_test, cols_x, col_y)
-    dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False)
+#     dataset_test = NeuralBehavDataset(pfx, itrs_test, cols_x, col_y)
+#     dataloader_test = DataLoader(dataset_test, batch_size=1, shuffle=False)
 
-    for x, y in dataloader_train:
-        print(f'First training data shape: {x.shape}, {y.shape}')
-        break
+#     for x, y in dataloader_train:
+#         print(f'First training data shape: {x.shape}, {y.shape}')
+#         break
 
-    for x, y in dataloader_test:
-        print(f'First test data shape: {x.shape}, {y.shape}')
-        break
+#     for x, y in dataloader_test:
+#         print(f'First test data shape: {x.shape}, {y.shape}')
+#         break
         
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = NeuralNetwork(cols_x).to(device)
+#     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#     model = NeuralNetwork(cols_x).to(device)
     
-    print(f'Using {device} device')
+#     print(f'Using {device} device')
     
-    loss_fn = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+#     loss_fn = nn.MSELoss()
+#     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     
-    def train(dataloader, model, loss_fn, optimizer):
-        model.train()
-        size = len(dataloader.dataset)
-        for ctr, (x, y) in enumerate(dataloader):
-            x, y = x[0, :, :].to(device), y.T.to(device)
+#     def train(dataloader, model, loss_fn, optimizer):
+#         model.train()
+#         size = len(dataloader.dataset)
+#         for ctr, (x, y) in enumerate(dataloader):
+#             x, y = x[0, :, :].to(device), y.T.to(device)
 
-            # compute prediction error
-            y_hat = model(x.float())
-            loss = loss_fn(y_hat, y.float())
+#             # compute prediction error
+#             y_hat = model(x.float())
+#             loss = loss_fn(y_hat, y.float())
 
-            # back prop
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+#             # back prop
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
 
-        return loss
+#         return loss
 
-    def test(dataloader, model, ctrs_return=None):
-        model.eval()
-        size = len(dataloader.dataset)
+#     def test(dataloader, model, ctrs_return=None):
+#         model.eval()
+#         size = len(dataloader.dataset)
 
-        if ctrs_return is None:
-            ctrs_return = []
-        elif ctrs_return == 'all':
-            ctrs_return = range(size)
+#         if ctrs_return is None:
+#             ctrs_return = []
+#         elif ctrs_return == 'all':
+#             ctrs_return = range(size)
 
-        ys = []
-        y_hats = []
+#         ys = []
+#         y_hats = []
 
-        with torch.no_grad():
-            for ctr, (x, y) in enumerate(dataloader):
-                x, y = x[0, :, :].to(device), y.T.to(device)
+#         with torch.no_grad():
+#             for ctr, (x, y) in enumerate(dataloader):
+#                 x, y = x[0, :, :].to(device), y.T.to(device)
 
-                # compute predictions
-                y_hat = model(x.float())
+#                 # compute predictions
+#                 y_hat = model(x.float())
 
-                if ctr in ctrs_return:
-                    ys.append(y.numpy())
-                    y_hats.append(y_hat.numpy())
+#                 if ctr in ctrs_return:
+#                     ys.append(y.numpy())
+#                     y_hats.append(y_hat.numpy())
 
-        return ys, y_hats
+#         return ys, y_hats
     
-    sys.stdout.write('Loss: ')
-    for cepoch in range(nepoch):
-        loss = train(dataloader_train, model, loss_fn, optimizer)
-        if cepoch == 0 or cepoch % print_every == 0:
-            sys.stdout.write(f'{loss:.6f} (E{cepoch+1}), ')
+#     sys.stdout.write('Loss: ')
+#     for cepoch in range(nepoch):
+#         loss = train(dataloader_train, model, loss_fn, optimizer)
+#         if cepoch == 0 or cepoch % print_every == 0:
+#             sys.stdout.write(f'{loss:.6f} (E{cepoch+1}), ')
             
-    ys_train, y_hats_train = test(dataloader_train, model, ctrs_return='all')
-    ys_test, y_hats_test = test(dataloader_test, model, ctrs_return='all')
+#     ys_train, y_hats_train = test(dataloader_train, model, ctrs_return='all')
+#     ys_test, y_hats_test = test(dataloader_test, model, ctrs_return='all')
     
-    var_train = np.var(cc(ys_train))
-    err_train = np.mean((cc(ys_train) - cc(y_hats_train))**2)
+#     var_train = np.var(cc(ys_train))
+#     err_train = np.mean((cc(ys_train) - cc(y_hats_train))**2)
     
-    var_test = np.var(cc(ys_test))
-    err_test = np.mean((cc(ys_test) - cc(y_hats_test))**2)
+#     var_test = np.var(cc(ys_test))
+#     err_test = np.mean((cc(ys_test) - cc(y_hats_test))**2)
     
-    rgr = Generic(
-        model=model,
-        w=list(model.parameters())[0][0].detach().numpy(),
-        bias=list(model.parameters())[1].detach().numpy()[0],
-        rms_err_train=err_train,
-        rms_err_test=err_test,
-        r2_train=(var_train - err_train)/var_train,
-        r2_test=(var_test - err_test)/var_test,
-        ys_train=ys_train,
-        y_hats_train=y_hats_train,
-        ys_test=ys_test,
-        y_hats_test=y_hats_test)
+#     rgr = Generic(
+#         model=model,
+#         w=list(model.parameters())[0][0].detach().numpy(),
+#         bias=list(model.parameters())[1].detach().numpy()[0],
+#         rms_err_train=err_train,
+#         rms_err_test=err_test,
+#         r2_train=(var_train - err_train)/var_train,
+#         r2_test=(var_test - err_test)/var_test,
+#         ys_train=ys_train,
+#         y_hats_train=y_hats_train,
+#         ys_test=ys_test,
+#         y_hats_test=y_hats_test)
     
-    return rgr
+#     return rgr

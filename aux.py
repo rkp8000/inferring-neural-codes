@@ -2,6 +2,7 @@
 import h5py
 import numpy as np
 import os
+from scipy.linalg import hankel
 
 cc = np.concatenate
 
@@ -284,3 +285,6 @@ def make_extended_predictor_matrix(vs, windows, order):
 
     # return full predictor matrix
     return np.concatenate(vs_extd, axis=1)
+
+def make_dsn_mat(x, nbak):
+    return hankel(cc([np.zeros(nbak-1), x]))[:len(x), :nbak]
