@@ -62,6 +62,11 @@ def set_plot(ax, x_lim=None, y_lim=None, x_ticks=None, y_ticks=None, x_tick_labe
     
 
 def get_line(x, y):
+    if not isinstance(x, np.ndarray):
+        x = np.array(x)
+    if not isinstance(y, np.ndarray):
+        y = np.array(y)
+        
     nnan_mask = (~np.isnan(x)) & (~np.isnan(y))
     slp, icpt, r, p, stderr = stats.linregress(x[nnan_mask], y[nnan_mask])
     
@@ -141,7 +146,7 @@ def plot_b(ax, t, b, extent, c, t_bar=None):
     for mode in modes:
         bds = get_seg(b==mode, min_gap=1)[1]
         for istart, iend in bds:
-            ax.fill_between([x_0+dx*istart, x_0+dx*iend], 2*[extent[2]], 2*[extent[3]], color=c[mode])
+            ax.fill_between([x_0+dx*istart, x_0+dx*iend], 2*[extent[2]], 2*[extent[3]], color=c[mode], lw=0)
     if t_bar:        
         dt = np.mean(np.gradient(t))
         dy_scale = .2*(extent[3]-extent[2])

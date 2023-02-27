@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 import os
 from scipy.linalg import hankel
+import string
 
 cc = np.concatenate
 
@@ -18,6 +19,9 @@ class Generic(object):
         
         for k, v in kwargs.items():
             self.__dict__[k] = v
+
+def rand_string(n):
+    return ''.join(np.random.choice(list(string.ascii_letters + string.digits), n))
 
 
 def c_tile(x, n):
