@@ -9,6 +9,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 from aux import get_seg
 
+colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
 
 def set_font_size(ax, font_size, legend_font_size=None):
     """Set font_size of all axis text objects to specified value."""
@@ -38,7 +40,7 @@ def set_font_size(ax, font_size, legend_font_size=None):
                 
                 
 def set_plot(ax, x_lim=None, y_lim=None, x_ticks=None, y_ticks=None, x_tick_labels=None, y_tick_labels=None,
-        x_label=None, y_label= None, title=None, font_size=None):
+        x_label=None, y_label= None, title=None, font_size=12):
     if x_lim is not None:
         ax.set_xlim(x_lim)
     if y_lim is not None:
@@ -192,7 +194,7 @@ def trj_2d(ax, t, x, y, b, c=None, s_max=500, v_max=10, gam=1.):
 
 
 def trj_3d(ax, t, x, y, z, b, c=None, s_max=500, v_max=10, gam=1.):
-    """Plot 2D bout 'trajectory'."""
+    """Plot 3D bout 'trajectory'."""
     dt, dx, dy, dz = np.gradient(t), np.gradient(x), np.gradient(y), np.gradient(z)
     v = np.sqrt(dx**2 + dy**2 + dz**2) / dt
     

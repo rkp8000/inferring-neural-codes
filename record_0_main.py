@@ -2,8 +2,6 @@
 import numpy as np
 from scipy import signal
 
-from aux import get_sine_off_cur
-
 
 # auxiliary functions
 def get_ma_matched_filter(tau_r, tau_a, x_s, x_p, dt):

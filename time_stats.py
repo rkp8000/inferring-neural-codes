@@ -1,6 +1,6 @@
 from copy import deepcopy
 import numpy as np
-from scipy import stats
+from scipy import signal, stats
 from sklearn.linear_model import LinearRegression
 
 
@@ -209,3 +209,51 @@ def nan_cov(x, y):
     mvalid = (~np.isnan(x)) & (~np.isnan(y))
     
     return np.cov(np.array([x[mvalid], y[mvalid]]))[0, 1]
+
+
+def xcov_conv_tri(x, y):
+    """
+    Estimate cross-covariance of two signals using scipy.signal.correlate and then
+    subsequently dividing by triangle function to account for time-lag-dependent
+    differences in # samples going into cov estimate. This is useful if you expect
+    slow timescales in the autocovariance function, since it is a more unbiased
+    estimate of those timescales, but it can also lead to singular covariance matrices.
+    """
+    x_mn = np.nanmean(x)
+    y_mn = np.nanmean(y)
+    
+    if np.any(np.isnan(x)) or np.any(np.isnan(y)):
+        # fft no work if nans
+        xcov_temp = signal.correlate(x - x_mn, y - y_mn, mode='full', method='direct')
+    else:
+        xcov_temp = signal.correlate(x - x_mn, y - y_mn, mode='full')
+        
+    x_1 = np.ones(len(x))
+    x_1[np.isnan(x)] = 0
+    
+    y_1 = np.ones(len(y))
+    y_1[np.isnan(y)] = 0
+    
+    tri = signal.correlate(x_1, y_1, mode='full')
+    tcov = np.arange(-len(x)+1, len(x))
+    
+    return xcov_temp/tri, tcov
+
+
+def xcov_conv_standard(x, y):
+    """
+    Estimate cross-covariance of two signals using scipy.signal.correlate .
+    """
+    x_mn = np.nanmean(x)
+    y_mn = np.nanmean(y)
+    
+    if np.any(np.isnan(x)) or np.any(np.isnan(y)):
+        # fft no work if nans
+        xcov_temp = signal.correlate(x - x_mn, y - y_mn, mode='full', method='direct')
+    else:
+        xcov_temp = signal.correlate(x - x_mn, y - y_mn, mode='full')
+        
+    tcov = np.arange(-len(x)+1, len(x))
+    
+    return xcov_temp/len(x), tcov
+
