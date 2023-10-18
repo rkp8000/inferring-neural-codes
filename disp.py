@@ -78,6 +78,19 @@ def get_line(x, y):
     return x_ln, y_ln, (slp, icpt, r, p, stderr)
     
     
+def get_line_log(x, y, n=None):
+    log_x = np.log10(x)
+    log_y = np.log10(y)
+    
+    if n is None:
+        n = len(x)
+    
+    log_x_resampled = np.linspace(log_x[0], log_x[-1], n)
+    log_y_resampled = np.interp(log_x_resampled, log_x, log_y)
+    
+    return get_line(log_x_resampled, log_y_resampled)
+
+    
 def set_n_x_ticks(ax, n, x_min=None, x_max=None):
     x_ticks = ax.get_xticks()
     
