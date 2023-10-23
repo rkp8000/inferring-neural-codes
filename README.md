@@ -157,7 +157,7 @@ Fig S11 (Greedily population response entropy): 09_F
 
 Fig S12 (Pop trajectory distance traveled and song code variance): 10_C
 
-Fig S13 (Linear projections of song-evoked MA activity): 10_F
+Fig S13 (Linear projections of song-evoked MA activity): 11_A
 
 Fig S14 (Strain-specific song and movement statistics): 01_K
 
