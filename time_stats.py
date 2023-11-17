@@ -3,6 +3,8 @@ import numpy as np
 from scipy import signal, stats
 from sklearn.linear_model import LinearRegression
 
+from aux import get_seg
+
 
 def f_test(rss_reduced, rss_full, df_reduced, df_full, n):
     """
@@ -257,3 +259,88 @@ def xcov_conv_standard(x, y):
     
     return xcov_temp/len(x), tcov
 
+
+def csd_multi(xs, ys, dt, df, min_dur=0):
+    """Compute csd from multiple, variable length samples of x, y time-series."""
+    f_out = np.arange(0, 1/(2*dt), df)  # output freq vector
+    
+    # get signal chunks w no nans
+    xs_valid = []
+    ys_valid = []
+
+    imin_dur = int(round(min_dur/dt))
+    
+    for x, y in zip(xs, ys):
+        mvalid = ( (~np.isnan(x)) & (~np.isnan(y)) )
+        segs, bds = get_seg(mvalid, min_gap=0)
+        
+        for lb, ub in bds:
+            if (ub - lb) >= imin_dur:
+                xs_valid.append(x[lb:ub])
+                ys_valid.append(y[lb:ub])
+                
+    p_xys = []
+    
+    p_xxs = []
+    p_yys = []
+    
+    for x, y in zip(xs_valid, ys_valid):
+        f, p_xy = signal.csd(x, y, 1/dt, nperseg=len(x))
+        f, p_xx = signal.csd(x, x, 1/dt, nperseg=len(x))
+        f, p_yy = signal.csd(y, y, 1/dt, nperseg=len(x))
+    
+        p_xys.append(np.interp(f_out, f, p_xy))
+        p_xxs.append(np.interp(f_out, f, p_xx))
+        p_yys.append(np.interp(f_out, f, p_yy))
+        
+    w = np.array([len(x) for x in xs_valid])
+    w = w/w.sum()
+    
+    p_xy_hat = w @ np.array(p_xys)
+    p_xx_hat = w @ np.array(p_xxs)
+    p_yy_hat = w @ np.array(p_yys)
+    
+    return f_out, np.abs(p_xy_hat)**2
+
+
+def coh_multi(xs, ys, dt, df, min_dur=0):
+    """Compute coherence from multiple, variable length samples of x, y time-series."""
+    f_out = np.arange(0, 1/(2*dt), df)  # output freq vector
+    
+    # get signal chunks w no nans
+    xs_valid = []
+    ys_valid = []
+
+    imin_dur = int(round(min_dur/dt))
+    
+    for x, y in zip(xs, ys):
+        mvalid = ( (~np.isnan(x)) & (~np.isnan(y)) )
+        segs, bds = get_seg(mvalid, min_gap=0)
+        
+        for lb, ub in bds:
+            if (ub - lb) >= imin_dur:
+                xs_valid.append(x[lb:ub])
+                ys_valid.append(y[lb:ub])
+                
+    p_xys = []
+    
+    p_xxs = []
+    p_yys = []
+    
+    for x, y in zip(xs_valid, ys_valid):
+        f, p_xy = signal.csd(x, y, 1/dt, nperseg=len(x))
+        f, p_xx = signal.csd(x, x, 1/dt, nperseg=len(x))
+        f, p_yy = signal.csd(y, y, 1/dt, nperseg=len(x))
+    
+        p_xys.append(np.interp(f_out, f, p_xy))
+        p_xxs.append(np.interp(f_out, f, p_xx))
+        p_yys.append(np.interp(f_out, f, p_yy))
+        
+    w = np.array([len(x) for x in xs_valid])
+    w = w/w.sum()
+    
+    p_xy_hat = w @ np.array(p_xys)
+    p_xx_hat = w @ np.array(p_xxs)
+    p_yy_hat = w @ np.array(p_yys)
+    
+    return f_out, np.abs(p_xy_hat)**2/(p_xx_hat*p_yy_hat)
