@@ -45,6 +45,9 @@ def skl_fit_ridge(
     np.random.seed(seed)
     
     rslts = []
+    itr_train_all = []
+    itr_test_all = []
+    
     for csplit in range(nsplit):
         if verbose is True:
             sys.stdout.write(f'\nSplit {csplit}')
@@ -157,12 +160,13 @@ def skl_fit_ridge(
                 rslt.y_hats_train[targ] = split(y_hats_train[:, ctarg], its_start_train, its_end_train)
                 rslt.y_hats_test[targ] = split(y_hats_test[:, ctarg], its_start_test, its_end_test)
             
+        rslt.itr_train = copy(itr_train)
+        rslt.itr_test = copy(itr_test)
+        
         # store songs (making for easy plotting directly from rslt object)
         if csplit in return_y:
             
             # train
-            rslt.itr_train = copy(itr_train)
-            
             rslt.songs_train = []
             rslt.ts_train = []
             for df_train_0 in dfs_train_0:
@@ -175,8 +179,6 @@ def skl_fit_ridge(
                 rslt.ts_train.append(np.array(df_train_0['T']))
             
             # test
-            rslt.itr_test = copy(itr_test)
-            
             rslt.songs_test = []
             rslt.ts_test = []
             for df_test_0 in dfs_test_0:

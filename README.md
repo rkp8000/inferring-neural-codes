@@ -1,8 +1,6 @@
 # Source code for Pang et al
 
-"Inferring neural codes from natural behavior in *Drosophila* social communication."
-
-(in preparation)
+"Inferring neural population codes for *Drosophila* acoustic communication."
 
 
 ## Summary of directory organization
@@ -38,21 +36,21 @@ All figures made in notebooks, grouped by functionality.
 
 03 - Fitting encoding models to neural calcium imaging data.
 
-04 - Recording artificial neural activity from fit neural models.
+04 - Simulating artificial neural activity from fit neural models.
 
 05 - Predicting behavior from artificial neural recordings.
 
 06 - Comparing behavioral predictions from different models.
 
-07 - Behavioral predictions vs artificial neural population size.
+07 - Behavioral predictions vs artificial neural population size and neural PCs.
 
-08 - Comparisons of single-neuron predictions of behavior vs parameters.
+08 - Example model neuron time-series in response to song.
 
-09 - Compression/information-theoretic analyses.
+09 - Info-theoretic analyses.
 
 10 - Analyses of natural-song accumulation dynamics in MA model.
 
-21 - Auxiliary analyses/datasets for training artificial RNN to predict behavior from song.
+20 - Analyses for selecting best natural songs to present for Ca imaging experiments.
 
 A - Equations, etc.
 
@@ -60,29 +58,28 @@ N - Analyses of initial neuroimaging data of female brain activity in response t
 
 S - Supplementary figures/analyses.
 
-Z - Some figures for specific meetings/talks/etc.
-
-
 
 ## Manuscript figure key
+
+The project contains several auxiliary notebooks/plots that were not included in the manuscript. The notebooks used to produce the specific figures in the main text and supplement are given below.
 
 ### Main
 
 Fig 1A (Song/locomotion example): 00_A5
 
-Fig 1B (Multiple song examples): 10_A, 1_AM
+Fig 1B (Song durations, mode durations, song mode frequencies): 01_A
 
-Fig 1C (Raw Baker et al imaging data): 03_C1A
+Fig 1C (Multiple song examples): 10_A
 
-Fig 1D (LN/MA fits to baker data): 03_CM
+Fig 1D (SCHEMATIC)
 
-Fig 1E (Example LN/MA naturalistic continuations): 03_DM
+Fig 1E (Baker et al imaging data with LN/NA fits): 03_C2
 
-Fig 1F (SCHEMATIC)
+Fig 1G (Example LN/NA naturalistic continuations): 03_D1
 
-Fig 1G (Example LN/MA predictions of female walking): 06_A1
+Fig 1H (Example LN/NA predictions of female walking): 06_A1
 
-Fig 1H (Bar chart of encoding model scores): 06_B
+Fig 1I (Bar chart of encoding model scores): 06_B
 
 
 Fig 2A (Perturbed MA encoding model scores): 06_B
@@ -93,80 +90,134 @@ Fig 2E (Female walking speed var expl vs number of neurons): 07_B
 
 Fig 2F (Neural and female walking speed var expl vs num PCs): 07_C
 
-Fig 2G (Example fast-adapt-slow-int MA pop trajectory): 08_B
+Fig 2G (Example fast-adapt-slow-int NA pop trajectory): 08_B
 
 Fig 2H (Example PC projections of fast-adapt-slow-int MA pop): 08_B
 
 Fig 2I (Reconstruction of female walking speed from PCs): 07_E
 
-Fig 2J (Female walking speed regression weights on PCs): 07_A3
 
-Fig 2K (Example songs driving activity on top PCs): 07_A3
+Fig 3A (SCHEMATIC + female walking speed rgr weights on PCs): 07_A3
 
-Fig 2L-M (Heterogeneity of adaptation vs integration): 07_G
-
-
-Fig 3A (Accumulator response example): 10_A
-
-Fig 3B (Example responses to many songs): 10_A
-
-Fig 3C (Correlations of accumulation w song feats): 10_A
-
-Fig 3D (Accumulator corrs vs MA params): 10_A
-
-Fig 3E (Response distributions of MA neurons): 09_C
-
-Fig 3F (Song info vs female locomotion predictability): 09_D
+Fig 3B (Example songs driving activity on top PCs): 07_A3
 
 
-Fig 4A (SCHEMATIC)
+Fig 4A (Example single-neuron response distributions): 09_C
 
-Fig 4B-C (Population responses to many songs): 10_E
+Fig 4B (Song info vs NA params): 09_D
 
-Fig 4D (Song separation over multiple timescales): 10_C
+Fig 4C (Female walking speed var expl vs NA params): 09_D
 
-Fig 4E-F (Song trajectories in PC space): 10_E
+Fig 4D (Song info vs female walking speed var expl): 09_D
 
-Fig 4I (Song separation of PC projections): 10_D1
+
+Fig 5A (SCHEMATIC)
+
+Fig 5B (State space representation of responses to many songs): 10_E
+
+Fig 5C (State space represnation of example song-evoked trajs): 10_E
+
+Fig 5D (Song separation over multiple timescales): 10_C
+
+Fig 5E (Example song-output transformations): 11_C
+
+Fig 5F (Spatial signatures of motifs): 11_A
+
+Fig 5G (SCHEMATIC)
+
+Fig 5H (Selective accumulation of temporal motifs): 11_B
 
 
 
 ### Supplementary
 
-Fig S1 (Example Baker et al vs Pacheco et al imaging data and MA params): 03_C1A, 03_C1B, 03_E, 03_F
+Fig S1A (Example Baker et al raw responses): 03_C1A
 
-Fig S2 (MA, LN, and Linear fit examples and error distributions): 03_CM
+Fig S1B (Example Pacheco et al raw responses): 03_C1B
 
-Fig S3 (Sine-offset responses): 03_CM
+Fig S1C (Baker et al fit NA params): 03_E
 
-Fig S4 (Song examples and statistics): 01_A, 01_AM
+Fig S1D (Pacheco et al fit NA params): 03_F
 
-Fig S5 (Predictions of alternate female behavioral variables and smoothing windows): 06_A1, 06_B, 06_B1
 
-Fig S6 (Songs driving activity on top neural PCs): 07_A3
+Fig S2 (More LN and NA fit examples): 03_C3
 
-Fig S7 (PC interpretations via hand-picked song feats): 07_A3
 
-Fig S8 (Greedily built MA population): 07_D, 08_C
+Fig S3 (LN and NA fits to sine-offset responses): 03_C3
 
-Fig S9 (Response distributions/entropies across MA params): 09_C
 
-Fig S10 (Response entropies vs MA params + extra example): 09_D, 09_C
+Fig S4A (1-min Female walking speed var explained vs neural models): 06_B
 
-Fig S11 (Greedily population response entropy): 09_F
+Fig S4B-C (Female forward and lateral speed var explained vs neural models): 06_B1
 
-Fig S12 (Pop trajectory distance traveled and song code variance): 10_C
+Fig S4E (Example LN vs NA predictions of 1-min smoothed female walking speed): 06_A1
 
-Fig S13 (Linear projections of song-evoked MA activity): 11_A
+Fig S4F (1-min smoothed female walking speed var expl vs perturbations): 06_B
 
-Fig S14 (Strain-specific song and movement statistics): 01_K
 
-Fig S15 (MA/LN comparison vs num trials): 06_D
+Fig S5A (More song examples): 01_A
 
-Fig S16 (Female walking prediction from hand-picked features): 06_B
+Fig S5B (Singing/quiet durations): 01_A
 
-Fig S17 (Female walking prediction lternate LN formulations/fitting): 06_B2
+Fig S5C (Mode segment durations): 01_A
 
-Fig S18 (Linear filters and basis functions): 02_E
+Fig S5D (Singing/quiet autocovariance): 01_A3
 
-Fig S19 (Sine-offset fits and walking speed predictions): 06_B
+Fig S5E (Sine/pulse cross covariance): 01_A4
+
+
+Fig S6 (Cross-spectral densities between true and predicted female walking speed): 06_A5
+
+
+Fig S7A (Example fast-adapt/slow-int response): 03_G
+
+Fig S7B (Fast-adapt/slow-int regime): 03_F
+
+
+Fig S8 (Heterogeneity of adaptation vs integration): 07_G
+
+
+Fig S9 (More song examples for each neural PC + stats): 07_A3
+
+
+Fig S10 (Response distributions + entropies for more example NA neurons): 09_C
+
+
+Fig S11 (Mutual info vs time lag for example NA neurons): 09_E
+
+
+Fig S12A-B (Song-evoked trajecs along neural PCs): 10_E
+
+Fig S12C (Song-evoked trajec separation along neural PCs): 10_C
+
+
+Fig S13 (Param sweep for song-to-output-sine-wave transformations): 11_C
+
+
+Fig S14 (Temporal pattern accum w traditional reservoir computer): 11_B1
+
+
+Fig S15A (NA-Sine-Rebound fits to sine-offset responses): 03_B2 (re-run)
+Fig S15B (Behavioral prediction including sine-offset neurons): 06_B
+
+
+Fig S16 (Example accumulation of natural but not block song): 10_A
+
+
+Fig S17 (NA vs LN fits vs number of courtship sessions used): 06_D
+
+
+Fig S18 (Female walking speed var explained vs hand-picked features): 06_B
+
+
+Fig S19 (Song->female walking speed lin filters + basis functions): 02_E
+
+
+Fig S20A (Female walking speed var explained by state space model [S5]): 02_J
+
+Fig S20B (Female walking speed var explained by feed-fwd network): 02_K
+
+Fig S20C (Female walking speed var explained by LSTM): 02_L
+
+
+Fig S21 (Female walking speed var explained by reservoir computer): 06_B
