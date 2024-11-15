@@ -1,6 +1,4 @@
-# Source code for Pang et al
-
-"Inferring neural population codes for *Drosophila* acoustic communication."
+# Source code for "Inferring neural population codes for *Drosophila* acoustic communication."
 
 
 ## Summary of directory organization
