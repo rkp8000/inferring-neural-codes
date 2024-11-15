@@ -17,11 +17,13 @@ time_stats.py: Functions for temporal statistics.
 
 my_torch.py: Functions for fitting neural -> behavior models.
 
-record_0_main.py: Simulation functions to record artificial neural activity from MA and MA-matched LN model.
+record_0_main.py: Simulation functions to record artificial neural activity from NA and NA-matched LN model.
 
-record_1_ma_ext.py: Simulation functions to record artificial neural activity from MA variations.
+record_1_ma_ext.py: Simulation functions to record artificial neural activity from NA variations.
 
-record_2_lin_ln.py: Simulation functions to record artificial neural activity from lin/LN models.
+record_3_rsvr.py: Simulation functions to record artificial neural activity from reservoir network.
+
+Note: For historical reasons many instances of "NA" are written as "MA" in the codebase.
 
 
 ## Notebook organization
@@ -75,7 +77,7 @@ Fig 1D (SCHEMATIC)
 
 Fig 1E (Baker et al imaging data with LN/NA fits): 03_C2
 
-Fig 1G (Example LN/NA naturalistic continuations): 03_D1
+Fig 1G (Example LN/NA naturalistic continuations): 03_D
 
 Fig 1H (Example LN/NA predictions of female walking): 06_A1
 
@@ -197,7 +199,8 @@ Fig S13 (Param sweep for song-to-output-sine-wave transformations): 11_C
 Fig S14 (Temporal pattern accum w traditional reservoir computer): 11_B1
 
 
-Fig S15A (NA-Sine-Rebound fits to sine-offset responses): 03_B2 (re-run)
+Fig S15A (NA-Sine-Rebound fits to sine-offset responses): 03_C2A
+
 Fig S15B (Behavioral prediction including sine-offset neurons): 06_B
 
 
