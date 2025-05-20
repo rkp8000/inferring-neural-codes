@@ -1,6 +1,8 @@
 # Source code for "Inferring neural population codes for *Drosophila* acoustic communication."
 
-Pang, Baker, Murthy, Pillow
+Pang, Rich, Christa A. Baker, Mala Murthy, Jonathan Pillow.
+
+https://www.pnas.org/doi/10.1073/pnas.2417733122
 
 ## Summary of directory organization
 
