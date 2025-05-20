@@ -64,24 +64,33 @@ def get_sine_off_cur(i_s, i_p):
 # simulation functions
 ## based on MA fit
 def smlt_ma(i_s, i_p, params, dt):
-    """MA: Multiplicative adaptive neuron."""
-    tau_rs = params['TAU_R']
-    tau_as = params['TAU_A']
-    x_ss = params['X_S']
-    x_ps = params['X_P']
+    """
+    NA: Nonlinear accumulation (previously Multiplicative Adaptation) neuron.
+    i_s: binary sequence of sine events (0 = no sine, 1 = sine)
+    i_p: binary sequence of pulse events (0 = no pulse, 1 = pulse)
+    params: dictionary of neural params (TAU_R, TAU_A, X_S, X_P)
+    dt: integration timestep (should be same as 1/sampling rate for i_s and i_p)
+    """
+    tau_rs = params['TAU_R']  # integration time constants
+    tau_as = params['TAU_A']  # adaptation time constants
+    x_ss = params['X_S']  # sine selectivities
+    x_ps = params['X_P']  # pulse selectivities
     
-    n = len(tau_rs)
+    n = len(tau_rs)  # num neurons
     
-    t = np.arange(len(i_s))*dt
-    rs = np.nan*np.zeros((len(t), n))
+    t = np.arange(len(i_s))*dt  # time vector
+    rs = np.nan*np.zeros((len(t), n))  # neural activity levels
     
     rs[0, :] = 0
-    a_s = np.zeros(n)
-    a_p = np.zeros(n)
+    a_s = np.zeros(n)  # sine adaptation variable
+    a_p = np.zeros(n)  # pulse adaptation variable
     
     for ct, t_ in enumerate(t[1:], 1):
+        # update adaptation variables
         a_s += ((dt/tau_as) * (-a_s + i_s[ct]))
         a_p += ((dt/tau_as) * (-a_p + i_p[ct]))
+        
+        # update neural activities
         dr = (dt/tau_rs) * (-rs[ct-1, :] + (1 - a_s)*x_ss*i_s[ct] + (1 - a_p)*x_ps*i_p[ct])
         rs[ct, :] = rs[ct-1, :] + dr
     
