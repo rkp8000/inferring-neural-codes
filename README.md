@@ -1,8 +1,6 @@
 # Source code for "Inferring neural population codes for *Drosophila* acoustic communication."
 
-Pang, Rich, Christa A. Baker, Mala Murthy, Jonathan Pillow.
-
-https://www.pnas.org/doi/10.1073/pnas.2417733122
+Pang, Baker, Murthy, Pillow
 
 ## Summary of directory organization
 
@@ -143,7 +141,11 @@ Fig S1C (Baker et al fit NA params): 03_E
 Fig S1D (Pacheco et al fit NA params): 03_F
 
 
-Fig S2 (More LN and NA fit examples): 03_C3
+Fig S2A-D (More LN and NA fit examples): 03_C3
+
+Fig S2E-F (Neural data fit errors for alternate LN fitting schemes): 03_C2
+
+Fig S2G (Female walking speed var explained from alternate LN models): 06_B2
 
 
 Fig S3 (LN and NA fits to sine-offset responses): 03_C3
